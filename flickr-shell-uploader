@@ -169,7 +169,7 @@ upload() {
     else
         echo "Uploaded $FILE"
     fi
-    #rm -f $TMPFILE
+    rm -f $TMPFILE
 }
 
 # We need these tools to run
