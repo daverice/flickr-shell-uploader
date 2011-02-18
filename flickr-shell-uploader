@@ -3,7 +3,8 @@
 OPTIONS='t:d:a:p:f:m:s:c:h:i:'
 APIKEY='beaf572d391130cbc8e7574ef1dbd1e0'
 SECRET='45a4009d57890cdb'
-DOTFILE="$HOME/.flickr-shell-uploader"
+scriptdir=`dirname "$0"`
+DOTFILE="${scriptdir}/flickr-shell-uploader.dot"
 FROB=''
 TOKEN=''
 
@@ -81,7 +82,7 @@ loadconfig() {
 
 getfrob() {
     if [ "x$FROB" == "x" ]; then
-        local SIG=$(echo -n ${SECRET}api_key${APIKEY}methodflickr.auth.getFrob | md5sum | awk '{print $1}')
+        local SIG=$(printf ${SECRET}api_key${APIKEY}methodflickr.auth.getFrob | md5 -q)
         local FROBINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.getFrob&api_key=${APIKEY}&api_sig=${SIG}")
         local RC=$?
         if [ $RC -ne 0 ] || echo $FROBINFO | grep -qi "err"; then
@@ -95,7 +96,7 @@ getfrob() {
 
 auth() {
     if [ "x$TOKEN" == "x" ]; then
-        local SIG=$(echo -n ${SECRET}api_key${APIKEY}frob${FROB}permswrite | md5sum | awk '{print $1}')
+        local SIG=$(printf ${SECRET}api_key${APIKEY}frob${FROB}permswrite | md5 -q)
         echo "Please go to the following URL: http://flickr.com/services/auth/?api_key=${APIKEY}&perms=write&frob=${FROB}&api_sig=${SIG}"
         echo ""
         echo "Then return here and press enter."
@@ -105,7 +106,7 @@ auth() {
 
 gettoken() {
     if [ "x$TOKEN" == "x" ]; then
-        local SIG=$(echo -n ${SECRET}api_key${APIKEY}frob${FROB}methodflickr.auth.getToken | md5sum | awk '{print $1}')
+        local SIG=$(printf ${SECRET}api_key${APIKEY}frob${FROB}methodflickr.auth.getToken | md5 -q)
         local TOKENINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.getToken&api_key=${APIKEY}&frob=${FROB}&api_sig=${SIG}")
         local RC=$?
         if [ $RC -ne 0 ] || echo $TOKENINFO | grep -qi "err"; then
@@ -122,7 +123,7 @@ checktoken() {
         echo "No token was defined."
         exit 4
     else
-        local SIG=$(echo -n ${SECRET}api_key${APIKEY}auth_token${TOKEN}methodflickr.auth.checkToken | md5sum | awk '{print $1}')
+        local SIG=$(printf ${SECRET}api_key${APIKEY}auth_token${TOKEN}methodflickr.auth.checkToken | md5 -q)
         local TOKENINFO=$(curl -s "http://api.flickr.com/services/rest/?method=flickr.auth.checkToken&api_key=${APIKEY}&auth_token=${TOKEN}&api_sig=${SIG}")
         local RC=$?
         if [ $RC -ne 0 ] || echo $TOKENINFO | grep -qi "err"; then
@@ -147,27 +148,29 @@ upload() {
     # Bash tends to make a mess of things with all the variable interpolation
     # going on here.
     TMPFILE="/tmp/flickr-shell-uploader.$$"
-    echo -n "UPLOAD=\$(curl -s -F api_key=${APIKEY} -F auth_token=${TOKEN}" > $TMPFILE
+    printf "UPLOAD=\$(curl -s -F api_key=${APIKEY} -F auth_token=${TOKEN}" > $TMPFILE
 
     # Construct signature text and query
     local SIGTEXT="${SECRET}api_key${APIKEY}auth_token${TOKEN}"
     for i in content_type description hidden is_family is_friend is_public safety_level tags title; do
-        if [ "x" != "x$(eval echo -n \$$i)" ]; then
-            SIGTEXT="${SIGTEXT}${i}$(eval echo -n \$$i)"
-            echo -n " -F ${i}=\"$(eval echo -n \$$i)\"" >> $TMPFILE
+        if [ "x" != "x$(eval printf \$$i)" ]; then
+	        echo i is "$i"
+            SIGTEXT="${SIGTEXT}${i}$(eval printf \$$i)"
+            printf " -F ${i}=\"$(eval printf \$$i)\"" >> $TMPFILE
+            echo um is " -F ${i}=\"$(eval printf \$$i)\""
         fi
     done
 
-    local SIG=$(echo -n $SIGTEXT | md5sum | awk '{print $1}')
-    echo -n " -F api_sig=${SIG} -F photo=@\"${FILE}\" http://api.flickr.com/services/upload/)" >> $TMPFILE
-    echo -e "\nRC=\$?" >> $TMPFILE
+    local SIG=$(printf $SIGTEXT | md5 -q)
+    printf " -F api_sig=${SIG} -F photo=@\"${FILE}\" http://api.flickr.com/services/upload/)" >> $TMPFILE
+    printf "\nRC=\$?" >> $TMPFILE
     source $TMPFILE
     if [ $RC -ne 0 ] || echo $UPLOAD | grep -qi 'err'; then
         echo "Error uploading file $FILE"
     else
         echo "Uploaded $FILE"
     fi
-    rm -f $TMPFILE
+    #rm -f $TMPFILE
 }
 
 # We need these tools to run
@@ -175,7 +178,7 @@ require curl
 require awk
 require grep
 require tr
-require md5sum
+require md5
 
 # Load a previously saved frob, otherwise make a new one
 loadconfig
