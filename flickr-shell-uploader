@@ -168,6 +168,7 @@ upload() {
         echo "Error uploading file $FILE"
     else
         echo "Uploaded $FILE"
+        echo "$UPLOAD"
     fi
     rm -f $TMPFILE
 }
